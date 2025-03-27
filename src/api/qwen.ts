@@ -1,28 +1,8 @@
-import type { CompletionArguments, Message } from "qwen";
+import type { ChatRequest, Message } from "./ollama_zod";
 import { events } from "fetch-event-stream";
-import { Environment } from "nunjucks";
 
-const nunjucks = new Environment(null, { autoescape: false });
-const toolsPrompt = `
-# Tools
-
-You may call one or more functions to assist with the user query.
-
-You are provided with function signatures within <tools></tools> XML tags:
-<tools>
-{% for tool in tools %}
-    {{ tool | dump(2) }}
-{% endfor %}
-</tools>
-
-For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
-<tool_call>
-{"name": <function-name>, "arguments": <args-json-object>}
-</tool_call>
-`;
-
-async function completion<T extends CompletionArguments>(
-  completionArgs: T,
+async function completion<T extends ChatRequest>(
+  chatRequest: T,
   token: string,
 ): Promise<
   T["stream"] extends true
@@ -33,18 +13,40 @@ async function completion<T extends CompletionArguments>(
 >;
 
 async function completion(
-  completionArgs: CompletionArguments,
+  chatRequest: ChatRequest,
   token: string,
 ): Promise<any> {
-  if (completionArgs.tools) {
-    const firstMessage = completionArgs.messages[0];
-    const toolsRender = nunjucks.renderString(toolsPrompt, {
-      tools: completionArgs.tools,
-    });
+  const messages = chatRequest.messages.map((m) => {
+    if (m.role === "tool") {
+      m.role = "user";
+      m.content = `<tool_response>${m.content}</tool_response>`;
+    }
+    return {
+      role: m.role,
+      content: m.content,
+    };
+  });
+  if (chatRequest.tools) {
+    const toolsPrompt = `
+# Tools
+
+You may call one or more functions to assist with the user query.
+
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+${chatRequest.tools.map((tool) => JSON.stringify(tool)).join("\n")}
+</tools>
+
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": <function-name>, "arguments": <args-json-object>}
+</tool_call>
+`;
+    const firstMessage = messages[0];
     if (firstMessage.role === "system") {
-      firstMessage.content += toolsRender;
+      firstMessage.content += toolsPrompt;
     } else {
-      completionArgs.messages.unshift({ role: "system", content: toolsRender });
+      messages.unshift({ role: "system", content: toolsPrompt });
     }
   }
 
@@ -54,17 +56,19 @@ async function completion(
       authorization: `Bearer ${token}`,
       "content-type": "application/json",
       cookie: "ssxmod_itna=GingTeam",
-      "user-agent": "GingTeam"
+      "user-agent": "GingTeam",
     },
     body: JSON.stringify({
-      ...completionArgs,
+      model: chatRequest.model,
+      messages: messages,
+      stream: chatRequest.stream,
       chat_id: "local",
       incremental_output: true,
     }),
     method: "POST",
   });
 
-  if (completionArgs.stream) {
+  if (chatRequest.stream) {
     return new ReadableStream<Message>({
       async start(controller) {
         const stream = events(response);

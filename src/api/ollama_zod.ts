@@ -96,7 +96,7 @@ export const GenerateRequestSchema = z.object({
 export const ChatRequestSchema = z.object({
   model: z.string(),
   messages: z.array(MessageSchema),
-  stream: z.boolean().optional(),
+  stream: z.boolean().optional().default(true),
   format: z.union([z.string(), z.record(z.any())]).optional(),
   keep_alive: z.union([z.string(), z.number()]).optional(),
   tools: z.array(ToolSchema).optional(),

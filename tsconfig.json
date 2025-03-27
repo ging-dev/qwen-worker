@@ -11,9 +11,6 @@
     "types": [
         "@cloudflare/workers-types/2023-07-01"
     ],
-    "paths": {
-      "qwen": ["./src/api/qwen.d.ts"]
-    },
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
   },

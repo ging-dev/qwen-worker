@@ -6,10 +6,10 @@ async function completion<T extends ChatRequest>(
   token: string,
 ): Promise<
   T["stream"] extends true
-    ? ReadableStream<Message>
-    : T["stream"] extends false
-      ? Message
-      : ReadableStream<Message> | Message
+  ? ReadableStream<Message>
+  : T["stream"] extends false
+  ? Message
+  : ReadableStream<Message> | Message
 >;
 
 async function completion(
@@ -72,9 +72,22 @@ For each function call, return a json object with function name and arguments wi
     return new ReadableStream<Message>({
       async start(controller) {
         const stream = events(response);
+        let buffer = "";
+        let maybeTool = false;
         for await (const event of stream) {
           if (!event.data) continue;
-          controller.enqueue(JSON.parse(event.data).choices[0].delta);
+          const delta = JSON.parse(event.data).choices[0].delta as Message;
+          buffer += delta.content;
+          if (delta.content.startsWith("<tool_call>")) {
+            maybeTool = true;
+          }
+          if (delta.content.endsWith("</tool_call>")) {
+            delta.content = ""
+            delta.tool_calls = tryParseToolCalls(buffer)
+            controller.enqueue(delta)
+          }
+          if (maybeTool) continue;
+          controller.enqueue(delta);
         }
         controller.close();
       },
@@ -83,7 +96,7 @@ For each function call, return a json object with function name and arguments wi
 
   const message = JSON.parse(await response.text()).choices[0].message;
   const toolCalls = tryParseToolCalls(message.content);
-  if (toolCalls) {
+  if (toolCalls.length) {
     message.content = "";
     message.tool_calls = toolCalls;
   }

@@ -6,10 +6,10 @@ async function completion<T extends ChatRequest>(
   token: string,
 ): Promise<
   T["stream"] extends true
-  ? ReadableStream<Message>
-  : T["stream"] extends false
-  ? Message
-  : ReadableStream<Message> | Message
+    ? ReadableStream<Message>
+    : T["stream"] extends false
+      ? Message
+      : ReadableStream<Message> | Message
 >;
 
 async function completion(
@@ -73,20 +73,22 @@ For each function call, return a json object with function name and arguments wi
       async start(controller) {
         const stream = events(response);
         let buffer = "";
-        let maybeTool = false;
+        let toolDetected = false;
         for await (const event of stream) {
           if (!event.data) continue;
           const delta = JSON.parse(event.data).choices[0].delta as Message;
-          buffer += delta.content;
           if (delta.content.startsWith("<tool_call>")) {
-            maybeTool = true;
+            toolDetected = true;
           }
+          if (toolDetected) buffer += delta.content;
           if (delta.content.endsWith("</tool_call>")) {
-            delta.content = ""
-            delta.tool_calls = tryParseToolCalls(buffer)
-            controller.enqueue(delta)
+            delta.content = "";
+            delta.tool_calls = tryParseToolCalls(buffer);
+            controller.enqueue(delta);
+            buffer = "";
+            toolDetected = false;
           }
-          if (maybeTool) continue;
+          if (toolDetected) continue;
           controller.enqueue(delta);
         }
         controller.close();
@@ -94,7 +96,8 @@ For each function call, return a json object with function name and arguments wi
     });
   }
 
-  const message = JSON.parse(await response.text()).choices[0].message;
+  const message = JSON.parse(await response.text()).choices[0]
+    .message as Message;
   const toolCalls = tryParseToolCalls(message.content);
   if (toolCalls.length) {
     message.content = "";

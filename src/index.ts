@@ -33,4 +33,10 @@ app.post("/chat", zValidator("json", ChatRequestSchema), async (c) => {
   });
 });
 
+app.post("/show", async (c) => {
+  return c.json({
+    capabilities: ["completion"],
+  });
+});
+
 export default app;

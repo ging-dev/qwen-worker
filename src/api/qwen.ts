@@ -1,4 +1,4 @@
-import type { ChatRequest, Message } from "./ollama_zod";
+import type { ChatRequest, Message } from "../zod/ollama";
 import { events } from "fetch-event-stream";
 
 async function completion<T extends ChatRequest>(

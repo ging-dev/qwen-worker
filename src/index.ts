@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
-import { ChatRequestSchema } from "./api/ollama_zod";
+import { ChatRequestSchema } from "./zod/ollama";
 import { completion } from "./api/qwen";
 import { streamText } from "hono/streaming";
 
